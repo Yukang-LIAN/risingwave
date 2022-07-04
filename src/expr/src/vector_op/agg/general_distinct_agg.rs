@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::cell::RefCell;
 use std::collections::HashSet;
 use std::marker::PhantomData;
 
@@ -37,7 +38,7 @@ where
 {
     return_type: DataType,
     input_col_idx: usize,
-    result: Option<R::OwnedItem>,
+    result: RefCell<Option<R::OwnedItem>>,
     f: F,
     exists: HashSet<Datum>,
     _phantom: PhantomData<T>,
@@ -52,7 +53,7 @@ where
         Self {
             return_type,
             input_col_idx,
-            result: None,
+            result: RefCell::new(None),
             f,
             exists: HashSet::new(),
             _phantom: PhantomData,
@@ -64,14 +65,8 @@ where
             .value_at(row_id)
             .map(|scalar_ref| scalar_ref.to_owned_scalar().to_scalar_value());
         if self.exists.insert(value) {
-            let datum = self
-                .f
-                .eval(
-                    self.result.as_ref().map(|x| x.as_scalar_ref()),
-                    input.value_at(row_id),
-                )?
-                .map(|x| x.to_owned_scalar());
-            self.result = datum;
+            let r = self.result.replace(None);
+            self.result.replace(self.f.eval(r, input.value_at(row_id))?);
         }
         Ok(())
     }
@@ -81,18 +76,17 @@ where
             self.exists
                 .insert(scalar_ref.map(|scalar_ref| scalar_ref.to_owned_scalar().to_scalar_value()))
         });
-        let mut cur = self.result.as_ref().map(|x| x.as_scalar_ref());
+        let mut cur = self.result.replace(None);
         for datum in input {
             cur = self.f.eval(cur, datum)?;
         }
-        let r = cur.map(|x| x.to_owned_scalar());
-        self.result = r;
+        self.result.replace(cur);
         Ok(())
     }
 
     fn output_concrete(&self, builder: &mut R::Builder) -> Result<()> {
         builder
-            .append(self.result.as_ref().map(|x| x.as_scalar_ref()))
+            .append(self.result.borrow().as_ref().map(|x| x.as_scalar_ref()))
             .map_err(Into::into)
     }
 
@@ -104,13 +98,13 @@ where
     ) -> Result<()> {
         let mut group_cnt = 0;
         let mut groups_iter = groups.starting_indices().iter().peekable();
-        let mut cur = self.result.as_ref().map(|x| x.as_scalar_ref());
+        let mut cur = self.result.replace(None);
         let chunk_offset = groups.chunk_offset();
         for (i, v) in input.iter().skip(chunk_offset).enumerate() {
             if groups_iter.peek() == Some(&&i) {
                 groups_iter.next();
                 group_cnt += 1;
-                builder.append(cur)?;
+                builder.append(cur.as_ref().map(|x| x.as_scalar_ref()))?;
                 cur = None;
             }
             let scalar_impl = v.map(|scalar_ref| scalar_ref.to_owned_scalar().to_scalar_value());
@@ -124,7 +118,7 @@ where
                 break;
             }
         }
-        self.result = cur.map(|x| x.to_owned_scalar());
+        self.result.replace(cur);
         Ok(())
     }
 }

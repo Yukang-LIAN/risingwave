@@ -26,9 +26,9 @@ where
 {
     fn eval(
         &mut self,
-        result: Option<<R as Array>::RefItem<'a>>,
+        result: Option<<R as Array>::OwnedItem>,
         input: Option<<T as Array>::RefItem<'a>>,
-    ) -> Result<Option<<R as Array>::RefItem<'a>>>;
+    ) -> Result<Option<<R as Array>::OwnedItem>>;
 }
 
 impl<'a, T, R, Z> RTFn<'a, T, R> for Z
@@ -38,15 +38,15 @@ where
     Z: Send
         + 'static
         + Fn(
-            Option<<R as Array>::RefItem<'a>>,
+            Option<<R as Array>::OwnedItem>,
             Option<<T as Array>::RefItem<'a>>,
-        ) -> Result<Option<<R as Array>::RefItem<'a>>>,
+        ) -> Result<Option<<R as Array>::OwnedItem>>,
 {
     fn eval(
         &mut self,
-        result: Option<<R as Array>::RefItem<'a>>,
+        result: Option<<R as Array>::OwnedItem>,
         input: Option<<T as Array>::RefItem<'a>>,
-    ) -> Result<Option<<R as Array>::RefItem<'a>>> {
+    ) -> Result<Option<<R as Array>::OwnedItem>> {
         self.call((result, input))
     }
 }
@@ -149,6 +149,16 @@ pub fn count_list(r: Option<i64>, i: Option<ListRef<'_>>) -> Result<Option<i64>>
     count(r, i)
 }
 
+pub fn concat_str(r: Option<String>, i: Option<&str>) -> Result<Option<String>> {
+    let res = match (r, i) {
+        (None, None) => None,
+        (None, Some(i)) => Some(i.to_string()),
+        (Some(r), None) => Some(r),
+        (Some(r), Some(i)) => Some(r + i),
+    };
+    Ok(res)
+}
+
 pub struct SingleValue {
     count: usize,
 }
@@ -165,9 +175,9 @@ where
 {
     fn eval(
         &mut self,
-        _result: Option<<T as Array>::RefItem<'a>>,
+        _result: Option<<T as Array>::OwnedItem>,
         input: Option<<T as Array>::RefItem<'a>>,
-    ) -> Result<Option<<T as Array>::RefItem<'a>>> {
+    ) -> Result<Option<<T as Array>::OwnedItem>> {
         self.count += 1;
         if self.count > 1 {
             Err(ErrorCode::InternalError(
@@ -175,7 +185,7 @@ where
             )
               .into())
         } else {
-            Ok(input)
+            Ok(input.map(|x| x.to_owned_scalar()))
         }
     }
 }

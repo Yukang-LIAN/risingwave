@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::cell::RefCell;
 use std::marker::PhantomData;
 
 use risingwave_common::array::*;
@@ -30,7 +31,7 @@ where
 {
     return_type: DataType,
     input_col_idx: usize,
-    result: Option<R::OwnedItem>,
+    result: RefCell<Option<R::OwnedItem>>,
     f: F,
     _phantom: PhantomData<T>,
 }
@@ -49,37 +50,30 @@ where
         Self {
             return_type,
             input_col_idx,
-            result: init_result,
+            result: RefCell::new(init_result),
             f,
             _phantom: PhantomData,
         }
     }
 
     pub(super) fn update_with_scalar_concrete(&mut self, input: &T, row_id: usize) -> Result<()> {
-        let datum = self
-            .f
-            .eval(
-                self.result.as_ref().map(|x| x.as_scalar_ref()),
-                input.value_at(row_id),
-            )?
-            .map(|x| x.to_owned_scalar());
-        self.result = datum;
+        let r = self.result.replace(None);
+        self.result.replace(self.f.eval(r, input.value_at(row_id))?);
         Ok(())
     }
 
     pub(super) fn update_concrete(&mut self, input: &T) -> Result<()> {
-        let mut cur = self.result.as_ref().map(|x| x.as_scalar_ref());
+        let mut cur = self.result.replace(None);
         for datum in input.iter() {
             cur = self.f.eval(cur, datum)?;
         }
-        let r = cur.map(|x| x.to_owned_scalar());
-        self.result = r;
+        self.result.replace(cur);
         Ok(())
     }
 
     pub(super) fn output_concrete(&self, builder: &mut R::Builder) -> Result<()> {
         builder
-            .append(self.result.as_ref().map(|x| x.as_scalar_ref()))
+            .append(self.result.borrow().as_ref().map(|x| x.as_scalar_ref()))
             .map_err(Into::into)
     }
 
@@ -91,13 +85,13 @@ where
     ) -> Result<()> {
         let mut group_cnt = 0;
         let mut groups_iter = groups.starting_indices().iter().peekable();
-        let mut cur = self.result.as_ref().map(|x| x.as_scalar_ref());
+        let mut cur = self.result.replace(None);
         let chunk_offset = groups.chunk_offset();
         for (i, v) in input.iter().skip(chunk_offset).enumerate() {
             if groups_iter.peek() == Some(&&(i + chunk_offset)) {
                 groups_iter.next();
                 group_cnt += 1;
-                builder.append(cur)?;
+                builder.append(cur.as_ref().map(|x| x.as_scalar_ref()))?;
                 cur = None;
             }
             cur = self.f.eval(cur, v)?;
@@ -108,7 +102,7 @@ where
                 break;
             }
         }
-        self.result = cur.map(|x| x.to_owned_scalar());
+        self.result.replace(cur);
         Ok(())
     }
 }
