@@ -157,7 +157,7 @@ pub fn count_list(r: Option<i64>, i: Option<ListRef<'_>>) -> Result<Option<i64>>
     count(r, i)
 }
 
-pub fn concat_str(r: Option<String>, i: Option<&str>) -> Result<Option<String>> {
+pub fn agg_str(r: Option<String>, i: Option<&str>) -> Result<Option<String>> {
     let res = match (r, i) {
         (None, None) => None,
         (None, Some(i)) => Some(i.to_string()),
