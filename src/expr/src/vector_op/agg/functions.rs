@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use risingwave_common::array::{Array, ListRef, StructRef};
+use risingwave_common::array::{Array, ListRef, ListValue, StructRef, StructValue};
 use risingwave_common::error::{ErrorCode, Result};
 
 /// Essentially `RTFn` is an alias of the specific Fn. It was aliased not to
@@ -68,57 +68,65 @@ where
     Ok(res)
 }
 
-pub fn min<'a, T>(result: Option<T>, input: Option<T>) -> Result<Option<T>>
+pub fn min<'a, T>(result: Option<T::ScalarType>, input: Option<T>) -> Result<Option<T::ScalarType>>
 where
     T: ScalarRef<'a> + PartialOrd,
+    T::ScalarType: PartialOrd,
 {
     let res = match (result, input) {
-        (None, _) => input,
-        (_, None) => result,
-        (Some(r), Some(i)) => Some(if r < i { r } else { i }),
+        (None, _) => input.map(|x| x.to_owned_scalar()),
+        (Some(r), None) => Some(r),
+        (Some(r), Some(i)) => {
+            let i = i.to_owned_scalar();
+            Some(if r < i { r } else { i })
+        }
     };
     Ok(res)
 }
 
-pub fn min_str<'a>(r: Option<&'a str>, i: Option<&'a str>) -> Result<Option<&'a str>> {
+pub fn min_str<'a>(r: Option<String>, i: Option<&'a str>) -> Result<Option<String>> {
     min(r, i)
 }
 
 pub fn min_struct<'a>(
-    r: Option<StructRef<'a>>,
+    r: Option<StructValue>,
     i: Option<StructRef<'a>>,
-) -> Result<Option<StructRef<'a>>> {
+) -> Result<Option<StructValue>> {
     min(r, i)
 }
 
-pub fn min_list<'a>(r: Option<ListRef<'a>>, i: Option<ListRef<'a>>) -> Result<Option<ListRef<'a>>> {
+pub fn min_list<'a>(r: Option<ListValue>, i: Option<ListRef<'a>>) -> Result<Option<ListValue>> {
     min(r, i)
 }
 
-pub fn max<'a, T>(result: Option<T>, input: Option<T>) -> Result<Option<T>>
+pub fn max<'a, T>(result: Option<T::ScalarType>, input: Option<T>) -> Result<Option<T::ScalarType>>
 where
     T: ScalarRef<'a> + PartialOrd,
+    T::ScalarType: PartialOrd,
 {
     let res = match (result, input) {
-        (None, _) => input,
-        (_, None) => result,
-        (Some(r), Some(i)) => Some(if r > i { r } else { i }),
+        (None, _) => input.map(|x| x.to_owned_scalar()),
+        (Some(r), None) => Some(r),
+        (Some(r), Some(i)) => {
+            let i = i.to_owned_scalar();
+            Some(if r > i { r } else { i })
+        }
     };
     Ok(res)
 }
 
-pub fn max_str<'a>(r: Option<&'a str>, i: Option<&'a str>) -> Result<Option<&'a str>> {
+pub fn max_str<'a>(r: Option<String>, i: Option<&'a str>) -> Result<Option<String>> {
     max(r, i)
 }
 
 pub fn max_struct<'a>(
-    r: Option<StructRef<'a>>,
+    r: Option<StructValue>,
     i: Option<StructRef<'a>>,
-) -> Result<Option<StructRef<'a>>> {
+) -> Result<Option<StructValue>> {
     max(r, i)
 }
 
-pub fn max_list<'a>(r: Option<ListRef<'a>>, i: Option<ListRef<'a>>) -> Result<Option<ListRef<'a>>> {
+pub fn max_list<'a>(r: Option<ListValue>, i: Option<ListRef<'a>>) -> Result<Option<ListValue>> {
     max(r, i)
 }
 
