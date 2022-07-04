@@ -187,7 +187,7 @@ impl_aggregator! { I64Array, Int64, I64Array, Int64 }
 impl_aggregator! { F32Array, Float32, F32Array, Float32 } // sum
 impl_aggregator! { F64Array, Float64, F64Array, Float64 } // sum
 impl_aggregator! { DecimalArray, Decimal, DecimalArray, Decimal } // sum
-impl_aggregator! { Utf8Array, Utf8, Utf8Array, Utf8 }
+impl_aggregator! { Utf8Array, Utf8, Utf8Array, Utf8 } // also for string_agg
 impl_aggregator! { BoolArray, Bool, BoolArray, Bool } // TODO(#359): remove once unnecessary
 impl_aggregator! { StructArray, Struct, StructArray, Struct }
 impl_aggregator! { ListArray, List, ListArray, List }
@@ -403,5 +403,24 @@ mod tests {
         let input = I32Array::from_slice(&[None]).unwrap();
         let expected = &[Some(0)];
         test_case(input.into(), expected)
+    }
+
+    #[test]
+    fn vec_string_agg() -> Result<()> {
+        let input = Utf8Array::from_slice(&[Some("aaa"), Some("bbb"), Some("ccc")])?;
+        let agg_type = AggKind::StringAgg;
+        let input_type = DataType::Varchar;
+        let return_type = DataType::Varchar;
+        let actual = eval_agg(
+            input_type,
+            Arc::new(input.into()),
+            &agg_type,
+            return_type,
+            ArrayBuilderImpl::Utf8(Utf8ArrayBuilder::new(0)),
+        )?;
+        let actual = actual.as_utf8();
+        let actual = actual.iter().collect::<Vec<_>>();
+        assert_eq!(actual, vec![Some("aaabbbccc")]);
+        Ok(())
     }
 }
