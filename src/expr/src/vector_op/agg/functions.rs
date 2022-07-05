@@ -157,10 +157,9 @@ pub fn count_list(r: Option<i64>, i: Option<ListRef<'_>>) -> Result<Option<i64>>
     count(r, i)
 }
 
-pub fn agg_str(r: Option<String>, i: Option<&str>) -> Result<Option<String>> {
-    let res = match (r, i) {
-        (None, None) => None,
-        (None, Some(i)) => Some(i.to_string()),
+pub fn agg_str(result: Option<String>, input: Option<&str>) -> Result<Option<String>> {
+    let res = match (result, input) {
+        (None, _) => input.map(&str::to_string),
         (Some(r), None) => Some(r),
         (Some(r), Some(i)) => Some(r + i),
     };
