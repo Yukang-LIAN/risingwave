@@ -65,7 +65,6 @@ rand = "0.8"
 tempfile = "3"
 tikv-jemallocator = "0.5"
 
-
 [[bench]]
 name = "filter"
 harness = false
